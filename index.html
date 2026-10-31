@@ -1,0 +1,554 @@
+<!DOCTYPE html>
+<html lang="en" class="h-full">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>ScamShield — Threat Intelligence Dashboard</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700&display=swap" rel="stylesheet" />
+  <script src="https://cdn.tailwindcss.com"></script>
+  <script src="https://cdn.jsdelivr.net/npm/tesseract.js@5/dist/tesseract.min.js"></script>
+  <script>
+    tailwind.config = {
+      theme: {
+        extend: {
+          fontFamily: { sans: ['"Plus Jakarta Sans"', 'sans-serif'] },
+          colors: {
+            brand: { 950: '#0b0f17', 900: '#111827', 850: '#151e2e', 800: '#1f293d', 700: '#334155' }
+          }
+        }
+      }
+    };
+  </script>
+  <script src="https://unpkg.com/lucide@latest"></script>
+  <style>
+    body { background-color: #0b0f17; font-family: 'Plus Jakarta Sans', sans-serif; }
+    .gauge-ring { transition: stroke-dashoffset 1.2s cubic-bezier(0.16, 1, 0.3, 1), stroke 0.4s ease; }
+    .fade-up { animation: fadeUp 0.35s cubic-bezier(0.16, 1, 0.3, 1) forwards; }
+    @keyframes fadeUp { from { opacity: 0; transform: translateY(8px); } to { opacity: 1; transform: translateY(0); } }
+    .pulsing-mic { animation: pulseMic 1.2s infinite; }
+    @keyframes pulseMic { 0%, 100% { opacity: 1; transform: scale(1); } 50% { opacity: 0.6; transform: scale(1.08); } }
+  </style>
+</head>
+<body class="min-h-full text-slate-100 flex flex-col antialiased selection:bg-rose-500 selection:text-white">
+
+  <!-- Minimal Topbar -->
+  <header class="border-b border-brand-800 bg-brand-950/80 backdrop-blur sticky top-0 z-30">
+    <div class="max-w-7xl mx-auto px-4 sm:px-6 h-16 flex items-center justify-between">
+      <div class="flex items-center gap-3">
+        <div class="h-9 w-9 rounded-lg bg-slate-900 border border-slate-700 flex items-center justify-center text-slate-200">
+          <i data-lucide="shield-check" class="h-5 w-5 text-slate-300"></i>
+        </div>
+        <div>
+          <span class="text-base font-bold tracking-tight text-white flex items-center gap-2">
+            ScamShield
+            <span class="text-[10px] font-semibold tracking-wider uppercase px-2 py-0.5 rounded-full bg-slate-800 text-slate-300 border border-slate-700">NEURAL LPU ENGINE</span>
+          </span>
+        </div>
+      </div>
+
+      <!-- Navigation & Actions -->
+      <div class="flex items-center gap-3">
+        <a href="tel:1930" class="flex items-center gap-1.5 px-3 py-1.5 text-xs font-semibold rounded-lg bg-rose-950/40 text-rose-300 border border-rose-800/60 hover:bg-rose-900/40 transition">
+          <i data-lucide="phone-call" class="h-3.5 w-3.5"></i>
+          <span>Dial 1930</span>
+        </a>
+        <a href="https://cybercrime.gov.in" target="_blank" rel="noopener noreferrer" class="flex items-center gap-1.5 px-3 py-1.5 text-xs font-semibold rounded-lg bg-cyan-950/40 border border-cyan-500/40 text-cyan-300 hover:bg-cyan-900/50 transition">
+        <i data-lucide="shield-alert" class="h-3.5 w-3.5 text-cyan-400"></i>
+        <span>Cybercrime Portal</span>
+      </a>
+        <!-- Hidden dummy button taaki JS error na de -->
+      <button id="openKeyModal" class="hidden"><span id="keyLabel"></span></button>
+
+      <!-- Ye visible status badge screen par dikhega -->
+      <div class="flex items-center gap-2 px-3 py-1.5 text-xs font-medium rounded-lg bg-emerald-950/40 border border-emerald-500/30 text-emerald-300">
+        <span class="w-2 h-2 rounded-full bg-emerald-400 animate-pulse"></span>
+        <span>Engine Live</span>
+      </div>
+      </div>
+    </div>
+  </header>
+
+  <!-- Main Viewport -->
+  <main class="max-w-7xl mx-auto px-4 sm:px-6 py-6 flex-1 w-full grid grid-cols-1 lg:grid-cols-12 gap-6">
+
+    <!-- Left Column: Input Control Center (5 cols) -->
+    <div class="lg:col-span-5 flex flex-col gap-5">
+      <div class="rounded-2xl border border-brand-800 bg-brand-900 p-5 flex flex-col gap-4">
+        
+        <!-- Tab Selector: Screenshot vs Domain Forensics -->
+        <div class="flex p-1 bg-brand-950 rounded-xl border border-brand-800 text-xs font-medium">
+          <button id="tabScanner" class="flex-1 py-2 rounded-lg bg-brand-850 text-white font-semibold transition flex items-center justify-center gap-1.5 border border-brand-700/50 shadow-sm">
+            <i data-lucide="scan-line" class="h-3.5 w-3.5"></i> Threat Scanner
+          </button>
+          <button id="tabDomain" class="flex-1 py-2 rounded-lg text-slate-400 hover:text-white transition flex items-center justify-center gap-1.5">
+            <i data-lucide="globe" class="h-3.5 w-3.5"></i> Domain Forensics
+          </button>
+        </div>
+
+        <!-- Language Selector (22 Official Indian Languages) -->
+        <div class="flex items-center justify-between text-xs border-b border-brand-800 pb-3">
+          <label class="text-slate-400 font-medium flex items-center gap-1.5">
+            <i data-lucide="languages" class="h-3.5 w-3.5"></i> Target Language
+          </label>
+          <select id="langSelect" class="bg-brand-950 border border-brand-800 text-slate-200 rounded-lg px-2.5 py-1 text-xs focus:ring-1 focus:ring-slate-500 outline-none">
+            <option value="Hindi" selected>हिन्दी (Hindi)</option>
+            <option value="English">English</option>
+            <option value="Bengali">বাংলা (Bengali)</option>
+            <option value="Telugu">తెలుగు (Telugu)</option>
+            <option value="Marathi">मराठी (Marathi)</option>
+            <option value="Tamil">தமிழ் (Tamil)</option>
+            <option value="Urdu">اردو (Urdu)</option>
+            <option value="Gujarati">ગુજરાતી (Gujarati)</option>
+            <option value="Kannada">ಕನ್ನಡ (Kannada)</option>
+            <option value="Malayalam">മലയാളം (Malayalam)</option>
+            <option value="Odia">ଓଡ଼ିଆ (Odia)</option>
+            <option value="Punjabi">ਪੰਜਾਬੀ (Punjabi)</option>
+            <option value="Assamese">অসমীয়া (Assamese)</option>
+            <option value="Maithili">मैथिली (Maithili)</option>
+            <option value="Santali">संथाली (Santali)</option>
+            <option value="Kashmiri">कॉशुर (Kashmiri)</option>
+            <option value="Nepali">नेपाली (Nepali)</option>
+            <option value="Konkani">कोंकणी (Konkani)</option>
+            <option value="Sindhi">सिन्धी (Sindhi)</option>
+            <option value="Dogri">डोगरी (Dogri)</option>
+            <option value="Manipuri">মৈতৈলোন্ (Manipuri)</option>
+            <option value="Bodo">बड़ो (Bodo)</option>
+            <option value="Sanskrit">संस्कृतम् (Sanskrit)</option>
+          </select>
+        </div>
+
+        <!-- Scanner View (Vision + Manual Text + Voice) -->
+        <div id="scannerSection" class="flex flex-col gap-4">
+          <!-- Dropzone -->
+          <div id="dropzone" class="relative group cursor-pointer border-2 border-dashed border-brand-700 hover:border-slate-400 bg-brand-950/60 rounded-xl p-6 flex flex-col items-center justify-center text-center transition">
+            <input type="file" id="fileInput" accept="image/*" class="hidden" />
+            <div id="uploadPrompt" class="flex flex-col items-center gap-2">
+              <div class="h-10 w-10 rounded-full bg-brand-850 flex items-center justify-center border border-brand-800 text-slate-300 group-hover:scale-105 transition">
+                <i data-lucide="upload" class="h-5 w-5"></i>
+              </div>
+              <p class="text-sm font-semibold text-slate-200">Drop screenshot here or <span class="text-slate-400 underline">browse</span></p>
+              <p class="text-[11px] text-slate-500">Supports PNG, JPG, WEBP (SMS, WhatsApp, UPI notifications)</p>
+            </div>
+            <!-- Preview Box -->
+            <div id="previewBox" class="hidden w-full relative">
+              <img id="previewImage" class="max-h-48 rounded-lg mx-auto border border-brand-800 object-contain shadow-md" alt="Screenshot preview" />
+              <button id="clearFile" class="absolute top-1 right-1 h-6 w-6 rounded-full bg-slate-900/90 text-slate-300 border border-slate-700 flex items-center justify-center hover:bg-rose-900 transition">
+                <i data-lucide="x" class="h-3.5 w-3.5"></i>
+              </button>
+            </div>
+          </div>
+
+          <!-- Text Paste & Voice Input Alternative -->
+          <div class="relative">
+            <textarea id="textInput" rows="2" placeholder="Or paste SMS / fraud message text here..." class="w-full bg-brand-950 border border-brand-800 rounded-xl p-3 pr-11 text-xs text-slate-200 placeholder-slate-600 focus:outline-none focus:border-slate-500 resize-none"></textarea>
+            <button id="micBtn" title="Speak message (Web Speech API)" class="absolute right-2.5 top-2.5 h-7 w-7 rounded-lg bg-brand-850 border border-brand-800 flex items-center justify-center text-slate-400 hover:text-white transition">
+              <i data-lucide="mic" class="h-3.5 w-3.5" id="micIcon"></i>
+            </button>
+          </div>
+        </div>
+
+        <!-- Domain Forensics View -->
+        <div id="domainSection" class="hidden flex flex-col gap-3">
+          <p class="text-xs text-slate-400 leading-relaxed">Enter a suspicious link or URL to evaluate DNS lookalikes, counterfeit subdomains, and credential theft vectors.</p>
+          <div class="relative">
+            <input type="text" id="domainInput" placeholder="e.g. http://sbi-kyc-update.xyz/login" class="w-full bg-brand-950 border border-brand-800 rounded-xl px-3 py-2.5 text-xs text-slate-200 placeholder-slate-600 focus:outline-none focus:border-slate-500 font-mono" />
+          </div>
+        </div>
+
+        <!-- Presets for Reliable 5-Second Demo -->
+        <div class="pt-2">
+          <span class="text-[11px] font-semibold text-slate-500 uppercase tracking-wider block mb-2">Live Demo Presets</span>
+          <div class="flex flex-wrap gap-2">
+            <button id="presetScam" class="px-2.5 py-1 rounded-md text-[11px] font-medium bg-brand-950 border border-brand-800 text-slate-300 hover:border-slate-600 hover:text-white transition flex items-center gap-1.5">
+              <i data-lucide="zap" class="h-3 w-3 text-rose-400"></i> Sample: Fake KYC Alert
+            </button>
+            <button id="presetSafe" class="px-2.5 py-1 rounded-md text-[11px] font-medium bg-brand-950 border border-brand-800 text-slate-300 hover:border-slate-600 hover:text-white transition flex items-center gap-1.5">
+              <i data-lucide="badge-check" class="h-3 w-3 text-emerald-400"></i> Sample: Real Bank OTP
+            </button>
+          </div>
+        </div>
+
+        <!-- Action Trigger -->
+        <button id="analyzeBtn" class="mt-2 w-full py-3 rounded-xl bg-slate-100 hover:bg-white text-slate-950 font-bold text-xs tracking-wide transition flex items-center justify-center gap-2 shadow-lg disabled:opacity-50 disabled:cursor-not-allowed">
+          <i data-lucide="scan-search" class="h-4 w-4"></i>
+          <span id="btnText">Analyze Intelligence</span>
+        </button>
+      </div>
+    </div>
+
+    <!-- Right Column: Insight Dashboard (7 cols) -->
+    <div class="lg:col-span-7 flex flex-col gap-5">
+      
+      <!-- Placeholder Empty State -->
+      <div id="idleState" class="h-full min-h-[460px] rounded-2xl border border-brand-800 bg-brand-900/60 p-8 flex flex-col items-center justify-center text-center">
+        <div class="h-14 w-14 rounded-2xl bg-brand-850 border border-brand-800 flex items-center justify-center text-slate-600 mb-4">
+          <i data-lucide="radar" class="h-7 w-7 text-slate-500"></i>
+        </div>
+        <h3 class="text-sm font-semibold text-slate-200">Awaiting Threat Payload</h3>
+        <p class="text-xs text-slate-500 max-w-sm mt-1 leading-relaxed">
+          Upload an SMS screenshot, paste raw suspicious text, or run a domain link to generate an instant risk score, verified threat flags, and dispatch notes.
+        </p>
+      </div>
+
+      <!-- Realtime Analysis Result Card (Hidden Initially) -->
+      <div id="resultCard" class="hidden rounded-2xl border border-brand-800 bg-brand-900 p-6 flex flex-col gap-5 fade-up">
+        
+        <!-- Header with Gauge and Primary Metric -->
+        <div class="flex flex-col sm:flex-row items-center gap-6 border-b border-brand-800 pb-6">
+          
+          <!-- Circular SVG Radial Gauge -->
+          <div class="relative w-36 h-36 shrink-0 flex items-center justify-center">
+            <svg class="w-full h-full transform -rotate-90" viewBox="0 0 120 120">
+              <circle cx="60" cy="60" r="50" stroke="#1f293d" stroke-width="10" fill="transparent"></circle>
+              <circle id="gaugeRing" cx="60" cy="60" r="50" stroke="#f43f5e" stroke-width="10" fill="transparent" stroke-dasharray="314.15" stroke-dashoffset="314.15" stroke-linecap="round" class="gauge-ring"></circle>
+            </svg>
+            <div class="absolute inset-0 flex flex-col items-center justify-center text-center">
+              <span id="riskScoreVal" class="text-3xl font-extrabold tracking-tight text-white">0</span>
+              <span class="text-[10px] font-semibold tracking-wider uppercase text-slate-400">Risk Score</span>
+            </div>
+          </div>
+
+          <!-- Primary Metric Narrative -->
+          <div class="flex flex-col items-center sm:items-start text-center sm:text-left gap-1.5 flex-1">
+            <div class="flex items-center gap-2">
+              <span id="verdictPill" class="px-2.5 py-0.5 rounded-full text-xs font-semibold uppercase tracking-wider bg-rose-950/70 text-rose-400 border border-rose-800/80">Critical Risk</span>
+              <span id="targetLangBadge" class="text-[11px] text-slate-500 font-medium"></span>
+            </div>
+            <h4 id="verdictHeading" class="text-base font-bold text-slate-100 mt-1">High Probability Fraud Detected</h4>
+            <p id="verdictSummary" class="text-xs text-slate-300 leading-relaxed"></p>
+          </div>
+        </div>
+
+        <!-- Detected Threat Highlights -->
+        <div>
+          <span class="text-xs font-semibold text-slate-400 block mb-2.5 flex items-center gap-1.5">
+            <i data-lucide="triangle-alert" class="h-3.5 w-3.5 text-amber-400"></i> Identified Threat Vectors
+          </span>
+          <div id="threatFlagsGrid" class="grid grid-cols-1 gap-2">
+            <!-- Dynamic Flags Injected Here -->
+          </div>
+        </div>
+
+        <!-- Recommended Citizens Protocol -->
+        <div>
+          <span class="text-xs font-semibold text-slate-400 block mb-2.5 flex items-center gap-1.5">
+            <i data-lucide="list-checks" class="h-3.5 w-3.5 text-slate-300"></i> Recommended Protocol
+          </span>
+          <div id="actionProtocolList" class="space-y-1.5 text-xs text-slate-300">
+            <!-- Dynamic Actions Injected Here -->
+          </div>
+        </div>
+
+        <!-- 1930 Cyber Dispatch Note Action Bar -->
+        <div class="pt-4 border-t border-brand-800 flex flex-col sm:flex-row gap-3">
+            <button id="copyDispatchBtn" class="flex-1 py-2.5 px-4 rounded-xl bg-brand-850 hover:bg-brand-800 border border-brand-700 text-slate-200 text-xs font-semibold flex items-center justify-center gap-2 transition">
+              <i data-lucide="clipboard-copy" class="h-3.5 w-3.5 text-slate-400"></i>
+              <span id="copyDispatchText">Copy Formal 1930 Evidence Draft</span>
+            </button>
+            <a href="tel:1930" class="py-2.5 px-4 rounded-xl bg-rose-900/40 hover:bg-rose-900/60 border border-rose-700/60 text-rose-300 text-xs font-semibold flex items-center justify-center gap-2 transition">
+              <i data-lucide="phone" class="h-3.5 w-3.5"></i> One-Tap Call 1930
+            </a>
+            <a href="https://cybercrime.gov.in" target="_blank" rel="noopener noreferrer" class="py-2.5 px-4 rounded-xl bg-brand-850 hover:bg-brand-800 border border-cyan-500/40 text-cyan-300 text-xs font-semibold flex items-center justify-center gap-2 transition">
+              <i data-lucide="external-link" class="h-3.5 w-3.5 text-cyan-400"></i> File on Cybercrime.gov.in
+            </a>
+          </div>
+      </div>
+    </div>
+  </main>
+
+  <!-- Key Management Modal -->
+  <div id="keyModal" class="fixed inset-0 bg-slate-950/80 backdrop-blur-sm z-50 hidden items-center justify-center p-4">
+    <div class="bg-brand-900 border border-brand-800 rounded-2xl max-w-md w-full p-6 flex flex-col gap-4 shadow-2xl fade-up">
+      <div class="flex items-center justify-between border-b border-brand-800 pb-3">
+        <h4 class="text-sm font-bold text-white flex items-center gap-2">
+          <i data-lucide="key" class="h-4 w-4 text-slate-400"></i> Google AI Studio API Key
+        </h4>
+        <button id="closeKeyModal" class="text-slate-400 hover:text-white transition"><i data-lucide="x" class="h-4 w-4"></i></button>
+      </div>
+      <p class="text-xs text-slate-400 leading-relaxed">
+        Key is stored strictly inside <code class="text-slate-300 font-mono">sessionStorage</code>. It is never transmitted to any third-party server.
+      </p>
+      <input type="password" id="inputApiKey" placeholder="AIzaSy..." class="w-full bg-brand-950 border border-brand-800 rounded-xl px-3 py-2 text-xs text-slate-100 font-mono focus:outline-none focus:border-slate-500" />
+      <div class="flex justify-end gap-2 pt-2">
+        <button id="saveApiKey" class="px-4 py-2 rounded-lg bg-slate-100 hover:bg-white text-slate-900 text-xs font-semibold transition">Save Session Key</button>
+      </div>
+    </div>
+  </div>
+
+  <script>
+    (() => {
+      const KEY_STORAGE = 'scamshield_client_key';
+      const $ = (id) => document.getElementById(id);
+      let activeImageBase64 = null;
+      let speechRecognizer = null;
+      let lastAnalysisResult = null;
+
+      const refreshLucide = () => window.lucide && lucide.createIcons();
+      refreshLucide();
+
+      const getSavedKey = () => sessionStorage.getItem(KEY_STORAGE) || '';
+      const setSavedKey = (k) => sessionStorage.setItem(KEY_STORAGE, k.trim());
+
+      const updateKeyBadge = () => {
+        const hasKey = !!getSavedKey();
+        $('keyLabel').textContent = hasKey ? 'Key Active' : 'Set API Key';
+        $('openKeyModal').classList.toggle('border-emerald-600/50', hasKey);
+        $('openKeyModal').classList.toggle('text-emerald-400', hasKey);
+      };
+      updateKeyBadge();
+
+      // Modal Triggers
+      $('openKeyModal').onclick = () => { $('inputApiKey').value = getSavedKey(); $('keyModal').classList.remove('hidden'); $('keyModal').classList.add('flex'); };
+      $('closeKeyModal').onclick = () => { $('keyModal').classList.add('hidden'); $('keyModal').classList.remove('flex'); };
+      $('saveApiKey').onclick = () => {
+        if ($('inputApiKey').value.trim()) setSavedKey($('inputApiKey').value);
+        updateKeyBadge();
+        $('closeKeyModal').click();
+      };
+
+      // Tab Management
+      let currentTab = 'scanner';
+      $('tabScanner').onclick = () => {
+        currentTab = 'scanner';
+        $('tabScanner').className = 'flex-1 py-2 rounded-lg bg-brand-850 text-white font-semibold transition flex items-center justify-center gap-1.5 border border-brand-700/50 shadow-sm';
+        $('tabDomain').className = 'flex-1 py-2 rounded-lg text-slate-400 hover:text-white transition flex items-center justify-center gap-1.5';
+        $('scannerSection').classList.remove('hidden');
+        $('domainSection').classList.add('hidden');
+      };
+      $('tabDomain').onclick = () => {
+        currentTab = 'domain';
+        $('tabDomain').className = 'flex-1 py-2 rounded-lg bg-brand-850 text-white font-semibold transition flex items-center justify-center gap-1.5 border border-brand-700/50 shadow-sm';
+        $('tabScanner').className = 'flex-1 py-2 rounded-lg text-slate-400 hover:text-white transition flex items-center justify-center gap-1.5';
+        $('domainSection').classList.remove('hidden');
+        $('scannerSection').classList.add('hidden');
+      };
+
+      // File & Dropzone Logic (Safe Downscaling)
+      const handleImageFile = (file) => {
+        if (!file || !file.type.startsWith('image/')) return;
+        const reader = new FileReader();
+        reader.onload = (e) => {
+          const img = new Image();
+          img.onload = () => {
+            const canvas = document.createElement('canvas');
+            const max = 600; // Optimal for Gemma / Gemini multimodal
+            let { width, height } = img;
+            if (width > height && width > max) { height *= max / width; width = max; }
+            else if (height > max) { width *= max / height; height = max; }
+            canvas.width = width; canvas.height = height;
+            const ctx = canvas.getContext('2d');
+            ctx.drawImage(img, 0, 0, width, height);
+            activeImageBase64 = canvas.toDataURL('image/jpeg', 0.6).split(',')[1];
+            $('previewImage').src = canvas.toDataURL('image/jpeg', 0.75);
+            $('uploadPrompt').classList.add('hidden');
+            $('previewBox').classList.remove('hidden');
+          };
+          img.src = e.target.result;
+        };
+        reader.readAsDataURL(file);
+      };
+
+      $('dropzone').onclick = (e) => { if (!e.target.closest('#clearFile') && !activeImageBase64) $('fileInput').click(); };
+      $('fileInput').onchange = (e) => handleImageFile(e.target.files[0]);
+      $('clearFile').onclick = (e) => {
+        e.stopPropagation();
+        activeImageBase64 = null;
+        $('fileInput').value = '';
+        $('previewBox').classList.add('hidden');
+        $('uploadPrompt').classList.remove('hidden');
+      };
+
+      // Voice Input (Web Speech API)
+      if ('webkitSpeechRecognition' in window || 'SpeechRecognition' in window) {
+        const SpeechRec = window.SpeechRecognition || window.webkitSpeechRecognition;
+        speechRecognizer = new SpeechRec();
+        speechRecognizer.continuous = false;
+        speechRecognizer.interimResults = false;
+
+        $('micBtn').onclick = () => {
+          const langMap = { Hindi: 'hi-IN', English: 'en-IN', Bengali: 'bn-IN', Tamil: 'ta-IN', Telugu: 'te-IN', Marathi: 'mr-IN' };
+          speechRecognizer.lang = langMap[$('langSelect').value] || 'hi-IN';
+          speechRecognizer.start();
+          $('micBtn').classList.add('pulsing-mic', 'text-rose-400');
+        };
+
+        speechRecognizer.onresult = (evt) => {
+          const transcript = evt.results[0][0].transcript;
+          $('textInput').value = transcript;
+          $('micBtn').classList.remove('pulsing-mic', 'text-rose-400');
+        };
+        speechRecognizer.onerror = () => $('micBtn').classList.remove('pulsing-mic', 'text-rose-400');
+        speechRecognizer.onend = () => $('micBtn').classList.remove('pulsing-mic', 'text-rose-400');
+      } else {
+        $('micBtn').style.display = 'none';
+      }
+
+      // Presets for Demo
+      $('presetScam').onclick = () => {
+        $('tabScanner').click();
+        $('textInput').value = "Urgent: Dear Consumer, your electricity power connection will be suspended tonight at 9:30 PM due to un-updated bill. Immediately call power officer at 9876543210 or install http://tiny.cc/bijli-pay";
+        $('clearFile').click();
+      };
+      $('presetSafe').onclick = () => {
+        $('tabScanner').click();
+        $('textInput').value = "SBI: 541902 is your One Time Password (OTP) for transaction of INR 2,400.00 at Flipkart. Valid for 5 mins. Do not share with anyone including bank staff.";
+        $('clearFile').click();
+      };
+
+      // Execution Engine
+      $('analyzeBtn').onclick = async () => {
+        const key = getSavedKey();
+        //if (!key) { $('openKeyModal').click(); return; }
+
+        let payloadText = currentTab === 'domain' ? $('domainInput').value.trim() : $('textInput').value.trim();
+        // Agar image uploaded hai aur text box khali hai, toh Tesseract se text extract karein
+    if (activeImageBase64 && !payloadText) {
+      $('btnText').textContent = 'Extracting Text (OCR)...';
+      try {
+        const imageSrc = activeImageBase64.startsWith('data:') 
+          ? activeImageBase64 
+          : 'data:image/jpeg;base64,' + activeImageBase64;
+        const ocrRes = await Tesseract.recognize(imageSrc, 'eng');
+        payloadText = ocrRes.data.text.trim();
+        $('textInput').value = payloadText;
+      } catch (ocrErr) {
+        console.error("OCR Failed:", ocrErr);
+      }
+    }
+        if (!payloadText && !activeImageBase64) {
+          alert('Please upload an image, enter text, or provide a URL to analyze.');
+          return;
+        }
+
+        $('analyzeBtn').disabled = true;
+        $('btnText').textContent = 'Consulting Neural Engine...';
+
+        const targetLang = $('langSelect').value;
+        const systemPrompt = `You are ScamShield. Analyze this message/image for fraud in India.
+Provide output strictly in ${targetLang}.
+Return JSON only without any literal newlines inside strings:
+{
+  "risk_score": <number 0-100>,
+  "verdict_title": "<max 4 words in ${targetLang}>",
+  "summary": "<max 2 sentences in ${targetLang}>",
+  "threat_flags": ["<point 1>", "<point 2>"],
+  "action_steps": ["<step 1>", "<step 2>"],
+  "dispatch_draft": "Formal 1-paragraph incident report for cybercrime.gov.in"
+}`;
+
+        const parts = [{ text: systemPrompt }];
+        if (payloadText) parts.push({ text: `Payload Content to examine:\n${payloadText}` });
+
+        // Endpoint using query parameter
+try {
+    const key = "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";
+          const endpoint = "https://api.groq.com/openai/v1/chat/completions";
+
+          const makeRequest = async () => {
+            return await fetch(endpoint, {
+              method: 'POST',
+              headers: {
+                'Content-Type': 'application/json',
+                'Authorization': `Bearer ${key}`
+              },
+              body: JSON.stringify({
+                model: "openai/gpt-oss-20b",
+                messages: [
+                  {
+                    role: "system",
+                    content: `${systemPrompt} Output strictly valid JSON object.`
+                  },
+                  {
+                    role: "user",
+                    content: payloadText || "Analyze this fraudulent message."
+                  }
+                ],
+                response_format: { type: "json_object" },
+                temperature: 0.1
+              })
+            });
+          };
+
+          let res = await makeRequest();
+          const data = await res.json();
+          if (!res.ok) throw new Error(data.error?.message || `HTTP ${res.status}`);
+
+          const rawText = data.choices?.[0]?.message?.content || '{}';
+          const parsed = JSON.parse(rawText.trim());
+
+          lastAnalysisResult = parsed;
+          renderDashboard(parsed, targetLang);
+        } catch (err) {
+          alert(`Analysis Error: ${err.message}`);
+        } finally {
+          $('analyzeBtn').disabled = false;
+          $('btnText').textContent = 'Analyze Intelligence';
+        }
+
+      // Render Visual Insights
+      function renderDashboard(data, lang) {
+        $('idleState').classList.add('hidden');
+        $('resultCard').classList.remove('hidden');
+
+        const score = Math.max(0, Math.min(100, Math.round(data.risk_score || 0)));
+        $('riskScoreVal').textContent = score;
+
+        // Animated Radial Ring
+        const ring = $('gaugeRing');
+        const circumference = 314.15;
+        const offset = circumference - (score / 100) * circumference;
+        ring.style.strokeDashoffset = offset;
+
+        // Chromatic States
+        if (score >= 70) {
+          ring.style.stroke = '#f43f5e';
+          $('verdictPill').className = 'px-2.5 py-0.5 rounded-full text-xs font-semibold uppercase tracking-wider bg-rose-950/70 text-rose-400 border border-rose-800/80';
+          $('verdictPill').textContent = 'Critical Risk';
+        } else if (score >= 35) {
+          ring.style.stroke = '#fbbf24';
+          $('verdictPill').className = 'px-2.5 py-0.5 rounded-full text-xs font-semibold uppercase tracking-wider bg-amber-950/70 text-amber-400 border border-amber-800/80';
+          $('verdictPill').textContent = 'Suspicious Payload';
+        } else {
+          ring.style.stroke = '#10b981';
+          $('verdictPill').className = 'px-2.5 py-0.5 rounded-full text-xs font-semibold uppercase tracking-wider bg-emerald-950/70 text-emerald-400 border border-emerald-800/80';
+          $('verdictPill').textContent = 'Likely Authentic';
+        }
+
+        $('targetLangBadge').textContent = `• Analyzed in ${lang}`;
+        $('verdictHeading').textContent = data.verdict_title || 'Analysis Complete';
+        $('verdictSummary').textContent = data.summary || '';
+
+        // Threat Indicators
+        $('threatFlagsGrid').innerHTML = (data.threat_flags || []).map(flag => `
+          <div class="flex items-start gap-2.5 p-2 rounded-lg bg-brand-950 border border-brand-800/70 text-xs text-slate-300">
+            <i data-lucide="alert-circle" class="h-4 w-4 text-rose-400 shrink-0 mt-0.5"></i>
+            <span>${flag}</span>
+          </div>
+        `).join('');
+
+        // Action Steps
+        $('actionProtocolList').innerHTML = (data.action_steps || []).map((step, idx) => `
+          <div class="flex items-start gap-2">
+            <span class="h-4 w-4 rounded-full bg-brand-800 text-[10px] font-bold text-slate-300 flex items-center justify-center shrink-0 mt-0.5">${idx + 1}</span>
+            <span>${step}</span>
+          </div>
+        `).join('');
+
+        refreshLucide();
+      }
+
+      // Copy Evidence Dispatch Draft
+      $('copyDispatchBtn').onclick = () => {
+        if (!lastAnalysisResult) return;
+        const text = lastAnalysisResult.dispatch_draft || `Incident Risk: ${lastAnalysisResult.risk_score}%\nSummary: ${lastAnalysisResult.summary}`;
+        navigator.clipboard.writeText(text);
+        $('copyDispatchText').textContent = 'Draft Copied to Clipboard!';
+        setTimeout(() => { $('copyDispatchText').textContent = 'Copy Formal 1930 Evidence Draft'; }, 2200);
+      }};
+
+    })();
+  </script>
+</body>
+</html>
